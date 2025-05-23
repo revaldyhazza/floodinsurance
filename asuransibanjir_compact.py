@@ -23,7 +23,7 @@ st.set_page_config(page_title="Asuransi Banjir Askrindo", page_icon="🏞️", l
 st.title("🌊 Web Application Flood Insurance Askrindo")
 
 st.write("### Untuk memahami Dashboard secara keseluruhan dapat mengakses link https://drive.google.com/file/d/15ehrqGegyiQHTNk_TV6bZ45BkPusBhOA/view?usp=sharing")
-st.write("### Data dapat diakses melalui link bit.ly/FileUploadDashboardAsuransiBanjir")
+st.write("### Data dapat diakses melalui link https://bit.ly/FileUploadDashboardAsuransiBanjir")
 
 # Step 1: Upload CSV
 st.subheader("⬆️ Upload Data yang Diperlukan")
