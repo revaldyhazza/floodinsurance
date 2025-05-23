@@ -10,6 +10,7 @@ altair==5.5.0
 pydeck==0.9.1
 plotly==6.0.1
 leafmap==0.43.5
+openpyxl==3.1.5
 numpy==2.2.4
 pyproj==3.7.1
 branca==0.8.1
