@@ -27,7 +27,7 @@ st.write("### Untuk memahami Dashboard secara keseluruhan dapat mengakses link h
 # Step 1: Upload CSV
 st.subheader("⬆️ Upload Data yang Diperlukan")
 csv_file = st.file_uploader("📄 Upload CSV", type=["csv"])
-    
+
 if csv_file:
     # Membaca file CSV
     df = pd.read_csv(csv_file)
@@ -101,7 +101,6 @@ if csv_file:
         st.error("Kolom 'Latitude' dan/atau 'Longitude' tidak ditemukan dalam data.")
         st.stop()
 
-    
     # Proses shapefiles
     if shp_zips:
         gdf_points = gpd.GeoDataFrame(
@@ -164,7 +163,7 @@ if csv_file:
             # Data untuk tabel rate
             image = Image.open("assets/Estimated Loss.png")
             st.image(image)
-            
+
             # Step 6: Hitung rate berdasarkan risiko dan okupasi
             if 'Kategori Risiko' in final.columns:
                 building_col = "Kategori Okupasi"
@@ -238,16 +237,27 @@ if csv_file:
             final['PML'] = final[selected_tsi] * final[selected_rate]
 
             st.subheader("📈 Hasil Akhir")
-            st.dataframe(final,
-                         use_container_width=True, hide_index=True)
+            st.dataframe(final, use_container_width=True, hide_index=True)
 
-            output_premi = io.BytesIO()
-            final.to_excel(output_premi, index=False, engine='openpyxl')
+            # Deteksi nama file berdasarkan nama file upload
+            uploaded_filename = csv_file.name.lower()
+            if "jakarta" in uploaded_filename:
+                output_filename = "Data Banjir Jakarta - After Computation.csv"
+            elif "all porto" in uploaded_filename:
+                output_filename = "Data Banjir All Porto - After Computation.csv"
+            else:
+                output_filename = "Data Banjir - After Computation.csv"
+
+            # Buat CSV untuk diunduh
+            output_premi = io.StringIO()
+            final.to_csv(output_premi, index=False, encoding='utf-8-sig')
+
+            # Tombol unduh
             st.download_button(
                 "⬇️ Unduh Data dengan PML",
                 data=output_premi.getvalue(),
-                file_name="Data Banjir (Computated).xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                file_name=output_filename,
+                mime="text/csv"
             )
 
             # Step 8: Peta Interaktif dengan Pydeck
@@ -342,18 +352,18 @@ if csv_file:
                 )
 
                 # Tampilkan map
-                st.pydeck_chart(deck, use_container_width=True, height = 750, width = 1000)
+                st.pydeck_chart(deck, use_container_width=True, height=750, width=1000)
 
             st.write("###### Untuk analisis geospasial secara langsung namun manual, maka dapat memanfaatkan Google Earth Pro, Untuk langkah-langkahnya dapat dilakukan sebagai berikut.")
             st.markdown("""
-            1. Install Google Earth Pro pada device masing-masing
-            2. Siapkan file .kml atau .kmz untuk risiko yang diinginkan, jika banjir dapat diakses melalui tautan [Layer Banjir](bit.ly/LayerBanjir)
-            3. Buka file .kml atau .kmz secara langsung di Google Earth Pro, layer akan otomatis ditampilkan dalam peta
-            4. Open file .csv lalu pilih delimiter yang sesuai, jika csv maka pilih comma (,)
-            4. Lalu, masukkan kolom Longitude dan Latitude sesuai nama kolom di data masing-masing
-            5. Spesifikasikan tipe data pada setiap kolomnya, biasanya Google akan bisa langsung membaca tapi silakan untuk diedit jika ada yang tidak benar)
+                1. Install Google Earth Pro pada device masing-masing
+                2. Siapkan file .kml atau .kmz untuk risiko yang diinginkan, jika banjir dapat diakses melalui tautan [Layer Banjir](bit.ly/LayerBanjir)
+                3. Buka file .kml atau .kmz secara langsung di Google Earth Pro, layer akan otomatis ditampilkan dalam peta
+                4. Open file .csv lalu pilih delimiter yang sesuai, jika csv maka pilih comma (,)
+                4. Lalu, masukkan kolom Longitude dan Latitude sesuai nama kolom di data masing-masing
+                5. Spesifikasikan tipe data pada setiap kolomnya, biasanya Google akan bisa langsung membaca tapi silakan untuk diedit jika ada yang tidak benar)
             """)
-            
+
             # Step 9: Ringkasan Hasil
             st.markdown("## 📊 Ringkasan Hasil")
             st.write(f"**Jumlah Data:** {len(final):,}")
