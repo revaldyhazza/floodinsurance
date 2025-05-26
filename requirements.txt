@@ -28,4 +28,5 @@ click==8.1.8
 cligj==0.7.2
 attrs==25.3.0
 click-plugins==1.1.1
+XlsxWriter==3.2.2
 streamlit-aggrid==1.1.2
