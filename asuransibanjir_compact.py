@@ -12,7 +12,8 @@ import fiona
 import tempfile
 from PIL import Image
 import io
-import altair as alt
+from io import BytesIO
+import altair
 import streamlit.components.v1 as components
 import pydeck as pdk
 import plotly.express as px
@@ -46,12 +47,7 @@ csv_file = st.file_uploader("📄 Upload CSV", type=["csv"])
 
 if csv_file:
     df = load_csv(csv_file)
-
-if csv_file:
-    # Membaca file CSV
-    df = pd.read_csv(csv_file)
-    df.columns = df.columns.str.strip()  # Bersihkan spasi pada nama kolom
-
+    
     # Display "as of" date based on the last day of the month of the latest INCEPTION DATE
     if 'INCEPTION DATE' in df.columns:
         if not pd.api.types.is_datetime64_any_dtype(df['INCEPTION DATE']):
@@ -90,7 +86,8 @@ if csv_file:
         else:
             st.success(f"✅ Menggunakan **data full** dengan **{len(df):,} baris**")
     else:
-        st.warning("⚠️ Kolom `EXPIRY DATE` tidak ditemukan, tidak bisa filter data inforce.")    
+        st.warning("⚠️ Kolom `EXPIRY DATE` tidak ditemukan, tidak bisa filter data inforce.")
+    
     # Tampilkan dataframe setelah filter
     st.dataframe(df, use_container_width=True, hide_index=True)
 
@@ -112,9 +109,11 @@ if csv_file:
             .str.replace(r"[^0-9\.-]", "", regex=True)
         )
 
+    # Gambar flowchart
     image = Image.open("assets/Flowchart Asuransi Banjir.png")
     st.image(image, use_container_width=True)
 
+    # Kolom koordinat
     lon_col = "Longitude"
     lat_col = "Latitude"
 
@@ -142,6 +141,31 @@ if csv_file:
         st.error("Kolom 'Latitude' dan/atau 'Longitude' tidak ditemukan dalam data.")
         st.stop()
 
+    # Fungsi cache untuk proses shapefile
+    @st.cache_data
+    def process_zip_shapefile(shapefile_bytes, _gdf_points):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with zipfile.ZipFile(BytesIO(shapefile_bytes), 'r') as zip_ref:
+                zip_ref.extractall(tmpdir)
+
+            shp_path = None
+            for root, _, files in os.walk(tmpdir):
+                for file in files:
+                    if file.endswith(".shp") and not file.startswith("._") and "__MACOSX" not in root:
+                        shp_path = os.path.join(root, file)
+
+            if not shp_path:
+                return None
+
+            try:
+                gdf_shape = gpd.read_file(shp_path)
+                gdf_shape.columns = gdf_shape.columns.str.strip()
+                gdf_points_proj = _gdf_points.to_crs(gdf_shape.crs)
+                joined = gpd.sjoin(gdf_points_proj, gdf_shape, how="left", predicate="intersects")
+                return joined
+            except Exception as e:
+                return f"error: {e}"
+
     # Proses shapefiles
     if shp_zips:
         gdf_points = gpd.GeoDataFrame(
@@ -152,28 +176,17 @@ if csv_file:
 
         joined_list = []
         for shp_zip in shp_zips:
-            with tempfile.TemporaryDirectory() as tmpdir:
-                with zipfile.ZipFile(shp_zip, 'r') as zip_ref:
-                    zip_ref.extractall(tmpdir)
+            zip_bytes = shp_zip.read()
+            result = process_zip_shapefile(zip_bytes, gdf_points)
 
-                shp_path = None
-                for root, _, files in os.walk(tmpdir):
-                    for file in files:
-                        if file.endswith(".shp") and not file.startswith("._") and "__MACOSX" not in root:
-                            shp_path = os.path.join(root, file)
-
-                if not shp_path:
-                    st.warning(f"Tidak ditemukan file .shp dalam ZIP: {shp_zip.name}")
-                    continue
-
-                try:
-                    gdf_shape = gpd.read_file(shp_path)
-                    gdf_shape.columns = gdf_shape.columns.str.strip()
-                    gdf_points_proj = gdf_points.to_crs(gdf_shape.crs)
-                    joined = gpd.sjoin(gdf_points_proj, gdf_shape, how="left", predicate="intersects")
-                    joined_list.append(joined)
-                except Exception as e:
-                    st.error(f"Gagal memproses shapefile dari {shp_zip.name}: {e}")
+            if isinstance(result, str) and result.startswith("error"):
+                st.error(f"Gagal memproses shapefile dari {shp_zip.name}: {result[7:]}")
+                continue
+            elif result is None:
+                st.warning(f"Tidak ditemukan file .shp dalam ZIP: {shp_zip.name}")
+                continue
+            else:
+                joined_list.append(result)
 
         if joined_list:
             combined = pd.concat(joined_list)
@@ -491,18 +504,18 @@ if csv_file:
                     value_name='Nilai'
                 )
 
-                chart = alt.Chart(summary_melted).mark_line(point=True).encode(
-                    x=alt.X('UY:O', title='Underwriting Year', axis=alt.Axis(labelAngle=0)),
-                    y=alt.Y('Nilai:Q', title='Nilai (Rp)', axis=alt.Axis(format='.1e')),
-                    color=alt.Color(
+                chart = altair.Chart(summary_melted).mark_line(point=True).encode(
+                    x=altair.X('UY:O', title='Underwriting Year', axis=altair.Axis(labelAngle=0)),
+                    y=altair.Y('Nilai:Q', title='Nilai (Rp)', axis=altair.Axis(format='.1e')),
+                    color=altair.Color(
                         'Tipe:N',
                         title='Jenis Nilai',
-                        scale=alt.Scale(range=['#66a3ff', '#f08522'])
+                        scale=altair.Scale(range=['#66a3ff', '#f08522'])
                     ),
                     tooltip=[
                         'UY',
                         'Tipe',
-                        alt.Tooltip('Nilai:Q', title='Nilai (Rp)', format='.1e')
+                        altair.Tooltip('Nilai:Q', title='Nilai (Rp)', format='.1e')
                     ]
                 ).properties(
                     title='📈 Tren Total TSI dan PML per UY',
@@ -540,23 +553,23 @@ if csv_file:
                     value_name='Nilai'
                 )
 
-                chart = alt.Chart(summary_melted).mark_bar().encode(
-                    x=alt.X('Kategori Okupasi:N', title='Kategori Okupasi', axis=alt.Axis(labelAngle=0)),
-                    y=alt.Y(
+                chart = altair.Chart(summary_melted).mark_bar().encode(
+                    x=altair.X('Kategori Okupasi:N', title='Kategori Okupasi', axis=altair.Axis(labelAngle=0)),
+                    y=altair.Y(
                         'Nilai:Q',
                         title='Nilai (Rp)',
                         stack='zero',
-                        axis=alt.Axis(format='.1e')
+                        axis=altair.Axis(format='.1e')
                     ),
-                    color=alt.Color(
+                    color=altair.Color(
                         'Tipe:N',
                         title='Jenis Nilai',
-                        scale=alt.Scale(range=['#66a3ff', '#f08522'])
+                        scale=altair.Scale(range=['#66a3ff', '#f08522'])
                     ),
                     tooltip=[
                         'Kategori Okupasi',
                         'Tipe',
-                        alt.Tooltip('Nilai:Q', title='Nilai (Rp)', format='.1e')
+                        altair.Tooltip('Nilai:Q', title='Nilai (Rp)', format='.1e')
                     ]
                 ).properties(
                     title='📊 Distribusi Total TSI dan PML per Kategori Okupasi',
@@ -641,9 +654,6 @@ if csv_file:
                     aggfunc='sum'
                 ).fillna(0).astype(int)
 
-                def format_ribuan(df):
-                    return df.apply(lambda x: x.map(lambda y: f"{int(y):,}".replace(",", ".") if pd.notnull(y) else y))
-
                 st.markdown("##### Jumlah Polis")
                 st.dataframe(format_ribuan(count_polis), use_container_width=True)
 
@@ -683,7 +693,6 @@ if csv_file:
                 # Pindahkan kolom 'Jenis' ke paling kiri
                 cols = ['Jenis'] + [col for col in combined.columns if col != 'Jenis']
                 combined = combined[cols]
-                
 
                 # Format angka dengan titik sebagai pemisah ribuan (Indonesia-style)
                 uy_cols = combined.columns.difference(['Jenis', 'Kode Okupasi (2 digit awal)'])
@@ -697,30 +706,30 @@ if csv_file:
                 
                 uy_cols = [col for col in combined.columns if col not in ['Jenis', 'Kode Okupasi (2 digit awal)', 'Jumlah Polis', 'Total']]
                 long_df = combined.melt(id_vars='Jenis', value_vars=uy_cols,
-                        var_name='Underwriting Year', value_name='Value')
+                                        var_name='Underwriting Year', value_name='Value')
 
                 # Ubah string format ribuan menjadi float untuk grafik
                 long_df['Value'] = long_df['Value'].str.replace(".", "", regex=False).astype(float)
 
                 # Plot menggunakan Plotly
                 fig = px.bar(long_df, 
-                x='Underwriting Year', 
-                y='Value', 
-                color='Jenis',
-                barmode='group',
-                text=None,
-                color_discrete_map={
-                 'Total TSI': '#EF553B',     # merah
-                 'PML': '#00CC96'            # hijau
-                },
-                title="Ringkasan Total TSI, dan PML per Underwriting Year")
+                             x='Underwriting Year', 
+                             y='Value', 
+                             color='Jenis',
+                             barmode='group',
+                             text=None,
+                             color_discrete_map={
+                                 'Total TSI': '#EF553B',     # merah
+                                 'PML': '#00CC96'            # hijau
+                             },
+                             title="Ringkasan Total TSI, dan PML per Underwriting Year")
 
                 fig.update_layout(
-                xaxis_title="Underwriting Year (UY)",
-                yaxis_title="Nilai",
-                legend_title="Metric",
-                yaxis_tickformat=",",
-                bargap=0.05
+                    xaxis_title="Underwriting Year (UY)",
+                    yaxis_title="Nilai",
+                    legend_title="Metric",
+                    yaxis_tickformat=",",
+                    bargap=0.05
                 )
 
                 st.plotly_chart(fig, use_container_width=True)
