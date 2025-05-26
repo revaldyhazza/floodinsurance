@@ -42,6 +42,8 @@ def load_csv(file):
     df.columns = df.columns.str.strip()
     return df
 
+csv_file = st.file_uploader("📄 Upload CSV", type=["csv"])
+
 if csv_file:
     df = load_csv(csv_file)
 
