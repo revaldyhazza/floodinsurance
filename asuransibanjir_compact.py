@@ -99,7 +99,7 @@ if csv_file:
             # Filter hanya untuk baris dengan EXPIRY DATE yang valid (datetime)
             filtered_df = df[df['EXPIRY DATE'].apply(lambda x: isinstance(x, pd.Timestamp) or isinstance(x, datetime.date))]
             filtered_df = filtered_df[filtered_df['EXPIRY DATE'] > selected_date]
-            st.success(f"✅ Menggunakan **data inforce** dengan **{len(filtered_df):,} baris** (EXPIRY DATE > {selected_date})")
+            st.success(f"✅ Menggunakan data dengan **{len(filtered_df):,} baris** (EXPIRY DATE > {selected_date})")
             df = filtered_df  # Update df dengan hasil filter
         else:
             st.success(f"✅ Menggunakan **data full** dengan **{len(df):,} baris**")
