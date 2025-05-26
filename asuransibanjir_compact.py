@@ -35,8 +35,8 @@ st.write("##### Untuk memahami Dashboard secara keseluruhan dapat mengakses link
 st.write("##### Data dapat diakses melalui link https://bit.ly/FileUploadDashboardAsuransiBanjir")
 
 # Step 1: Upload CSV
-st.subheader("⬆️ Upload Data yang Diperlukan")
 @st.cache_data
+st.subheader("⬆️ Upload Data yang Diperlukan")
 csv_file = st.file_uploader("📄 Upload CSV", type=["csv"])
 
 if csv_file:
