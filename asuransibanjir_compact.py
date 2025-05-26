@@ -465,11 +465,11 @@ if csv_file:
                 st.pydeck_chart(deck, use_container_width=True, height=750, width=1000)
 
             # Step 9: Ringkasan Hasil
-            st.markdown("## 📊 Ringkasan Hasil")
-            st.write(f"**Jumlah Data:** {len(final):,}")
+            st.markdown("## 📊 Statistik Deskriptif")
+            st.markdown(f"##### Jumlah Data: {len(final):,}")
 
             if 'Kategori Risiko' in final.columns:
-                st.write("**Distribusi Kategori Risiko:**")
+                st.markdown("##### Distribusi Kategori Risiko")
                 st.dataframe(
                     final['Kategori Risiko'].value_counts().rename_axis('Kategori').reset_index(name='Jumlah'),
                     use_container_width=True,
