@@ -36,6 +36,7 @@ st.write("##### Data dapat diakses melalui link https://bit.ly/FileUploadDashboa
 
 # Step 1: Upload CSV
 st.subheader("⬆️ Upload Data yang Diperlukan")
+@st.cache_data
 csv_file = st.file_uploader("📄 Upload CSV", type=["csv"])
 
 if csv_file:
