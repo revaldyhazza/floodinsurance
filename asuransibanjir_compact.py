@@ -372,7 +372,7 @@ if csv_file:
 
             # Step 8: Peta Interaktif dengan Pydeck
             if lon_col and lat_col and not final.empty:
-                st.subheader("🌐 Peta Portfolio Interaktif Berdasarkan Risiko")
+                st.subheader("🌐 Peta Sebaran Portfolio")
 
                 # Mapping risiko ke bobot untuk heatmap
                 risk_mapping = {
