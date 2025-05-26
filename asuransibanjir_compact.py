@@ -211,7 +211,7 @@ if csv_file:
             st.subheader("🧮 Persentase Estimasi Kerugian")
             st.markdown("""
                 <div style='text-align: justify'>
-                Kategori Okupasi dibedakan menjadi Residensial, Industrial dan Komersial. Selain itu, Kategori Risiko akan memuat jumlah lantai dari bangunan di dalamnya. Untuk mengetahui acuan yang digunakan, maka dapat dilihat melalui tabel berikut.
+                Kategori Okupasi terdiri atas Residensial, Industrial dan Komersial. Selain itu, Kategori Risiko akan memuat jumlah lantai dari bangunan dan letak isi yang ada di dalamnya. Untuk mengetahui acuan yang digunakan, dapat dilihat melalui tabel berikut.
                 </div>
             """, unsafe_allow_html=True)
 
