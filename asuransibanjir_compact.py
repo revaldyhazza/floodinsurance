@@ -707,36 +707,6 @@ if csv_file:
 
                 # Tampilkan hasil di Streamlit
                 st.dataframe(combined, use_container_width=True, hide_index=True)
-                
-                uy_cols = [col for col in combined.columns if col not in ['Jenis', 'Kode Okupasi (2 digit awal)', 'Jumlah Polis', 'Total']]
-                long_df = combined.melt(id_vars='Jenis', value_vars=uy_cols,
-                                        var_name='Underwriting Year', value_name='Value')
-
-                # Ubah string format ribuan menjadi float untuk grafik
-                long_df['Value'] = long_df['Value'].str.replace(".", "", regex=False).astype(float)
-
-                # Plot menggunakan Plotly
-                fig = px.bar(long_df, 
-                             x='Underwriting Year', 
-                             y='Value', 
-                             color='Jenis',
-                             barmode='group',
-                             text=None,
-                             color_discrete_map={
-                                 'Sum TSI': '#EF553B',     # merah
-                                 'PML': '#00CC96'            # hijau
-                             },
-                             title="Ringkasan Sum TSI, dan PML per Underwriting Year")
-
-                fig.update_layout(
-                    xaxis_title="Underwriting Year (UY)",
-                    yaxis_title="Nilai",
-                    legend_title="Metric",
-                    yaxis_tickformat=",",
-                    bargap=0.05
-                )
-
-                st.plotly_chart(fig, use_container_width=True)
         else:
             st.warning("⚠️ Tidak ada shapefile yang berhasil diproses.")
 else:
