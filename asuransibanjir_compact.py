@@ -484,15 +484,15 @@ if csv_file:
                     TotalPML=('PML', 'sum')
                 ).reset_index().rename(columns={
                     'Jumlah_Polis': 'Jumlah Polis',
-                    'TotalTSI': 'Total TSI',
-                    'TotalPML': 'Total PML'
+                    'TotalTSI': 'Sum TSI',
+                    'TotalPML': 'Sum PML'
                 })
 
                 # Create a copy for display with formatted strings
                 display_uy = summary_uy.copy()
                 display_uy["Jumlah Polis"] = display_uy["Jumlah Polis"].apply(lambda x: f"{x:,.0f}".replace(",", "."))
-                display_uy["Total TSI"] = display_uy["Total TSI"].apply(lambda x: f"{x:,.0f}".replace(",", "."))
-                display_uy["Total PML"] = display_uy["Total PML"].apply(lambda x: f"{x:,.0f}".replace(",", "."))
+                display_uy["Sum TSI"] = display_uy["Sum TSI"].apply(lambda x: f"{x:,.0f}".replace(",", "."))
+                display_uy["Sum PML"] = display_uy["Sum PML"].apply(lambda x: f"{x:,.0f}".replace(",", "."))
 
                 # Display the formatted dataframe
                 st.dataframe(display_uy, use_container_width=True, hide_index=True)
@@ -500,7 +500,7 @@ if csv_file:
                 # Melt the original numerical dataframe for the chart
                 summary_melted = summary_uy.melt(
                     id_vars='UY',
-                    value_vars=['Total TSI', 'Total PML'],
+                    value_vars=['Sum TSI', 'Sum PML'],
                     var_name='Tipe',
                     value_name='Nilai'
                 )
@@ -519,7 +519,7 @@ if csv_file:
                         alt.Tooltip('Nilai:Q', title='Nilai (Rp)', format='.1e')
                     ]
                 ).properties(
-                    title='📈 Tren Total TSI dan PML per UY',
+                    title='📈 Tren Sum TSI dan PML per UY',
                     width=700,
                     height=400
                 ).interactive()
@@ -534,22 +534,22 @@ if csv_file:
                     total_pml=('PML', 'sum')
                 ).reset_index().rename(columns={
                     'jml_polis': 'Jumlah Polis',
-                    'total_tsi': 'Total TSI',
-                    'total_pml': 'Total PML'
+                    'total_tsi': 'Sum TSI',
+                    'total_pml': 'Sum PML'
                 })
 
                 # Create a copy for display with formatted strings
                 display_okupasi = summary_okupasi.copy()
                 display_okupasi['Jumlah Polis'] = display_okupasi['Jumlah Polis'].apply(lambda x: f"{x:,.0f}".replace(",", "."))
-                display_okupasi['Total TSI'] = display_okupasi['Total TSI'].apply(lambda x: f"{x:,.0f}".replace(",", "."))
-                display_okupasi['Total PML'] = display_okupasi['Total PML'].apply(lambda x: f"{x:,.0f}".replace(",", "."))
+                display_okupasi['Sum TSI'] = display_okupasi['Sum TSI'].apply(lambda x: f"{x:,.0f}".replace(",", "."))
+                display_okupasi['Sum PML'] = display_okupasi['Sum PML'].apply(lambda x: f"{x:,.0f}".replace(",", "."))
 
                 st.dataframe(display_okupasi, use_container_width=True, hide_index=True)
 
                 # Melt the original numerical dataframe for the chart
                 summary_melted = summary_okupasi.melt(
                     id_vars='Kategori Okupasi',
-                    value_vars=['Total TSI', 'Total PML'],
+                    value_vars=['Sum TSI', 'Sum PML'],
                     var_name='Tipe',
                     value_name='Nilai'
                 )
@@ -573,7 +573,7 @@ if csv_file:
                         alt.Tooltip('Nilai:Q', title='Nilai (Rp)', format='.1e')
                     ]
                 ).properties(
-                    title='📊 Distribusi Total TSI dan PML per Kategori Okupasi',
+                    title='📊 Distribusi Sum TSI dan PML per Kategori Okupasi',
                     width=700,
                     height=400
                 )
@@ -588,15 +588,15 @@ if csv_file:
                     TotalPML=('PML', 'sum')
                 ).reset_index().rename(columns={
                     'Jumlah_Polis': 'Jumlah Polis',
-                    'TotalTSI': 'Total TSI',
-                    'TotalPML': 'Total PML'
+                    'TotalTSI': 'Sum TSI',
+                    'TotalPML': 'Sum PML'
                 })
 
                 # Create a copy for display with formatted strings
                 display_riskclass = summary_riskclass.copy()
                 display_riskclass['Jumlah Polis'] = display_riskclass['Jumlah Polis'].apply(lambda x: f"{x:,.0f}".replace(",", "."))
-                display_riskclass['Total TSI'] = display_riskclass['Total TSI'].apply(lambda x: f"{x:,.0f}".replace(",", "."))
-                display_riskclass['Total PML'] = display_riskclass['Total PML'].apply(lambda x: f"{x:,.0f}".replace(",", "."))
+                display_riskclass['Sum TSI'] = display_riskclass['Sum TSI'].apply(lambda x: f"{x:,.0f}".replace(",", "."))
+                display_riskclass['Sum PML'] = display_riskclass['Sum PML'].apply(lambda x: f"{x:,.0f}".replace(",", "."))
 
                 st.dataframe(display_riskclass, use_container_width=True, hide_index=True)
 
@@ -628,7 +628,7 @@ if csv_file:
                 st.markdown("##### Jumlah Polis")
                 st.dataframe(format_ribuan(count_polis), use_container_width=True)
 
-                st.markdown("##### Total TSI")
+                st.markdown("##### Sum TSI")
                 st.dataframe(format_ribuan(sum_tsi), use_container_width=True)
                 
                 st.markdown("##### Probable Maximum Loss")
@@ -661,7 +661,7 @@ if csv_file:
                 st.markdown("##### Jumlah Polis")
                 st.dataframe(format_ribuan(count_polis), use_container_width=True)
 
-                st.markdown("##### Total TSI")
+                st.markdown("##### Sum TSI")
                 st.dataframe(format_ribuan(sum_tsi), use_container_width=True)
 
                 st.markdown("##### Probable Maximum Loss")
@@ -681,14 +681,14 @@ if csv_file:
 
                 # Buat masing-masing pivot
                 count_df = get_pivot(final, None, 'Jumlah Polis')
-                tsi_df = get_pivot(final, selected_tsi, 'Total TSI')
+                tsi_df = get_pivot(final, selected_tsi, 'Sum TSI')
                 pml_df = get_pivot(final, 'PML', 'PML')
 
                 # Gabungkan semua pivot
                 combined = pd.concat([count_df, tsi_df, pml_df], ignore_index=True)
 
                 # Jadikan 'Jenis' bertipe kategorikal dengan urutan yang diinginkan
-                urutan_jenis = ['Jumlah Polis', 'Total TSI', 'PML']
+                urutan_jenis = ['Jumlah Polis', 'Sum TSI', 'PML']
                 combined['Jenis'] = pd.Categorical(combined['Jenis'], categories=urutan_jenis, ordered=True)
 
                 # Urutkan berdasarkan Jenis lalu Kode Okupasi
@@ -723,10 +723,10 @@ if csv_file:
                              barmode='group',
                              text=None,
                              color_discrete_map={
-                                 'Total TSI': '#EF553B',     # merah
+                                 'Sum TSI': '#EF553B',     # merah
                                  'PML': '#00CC96'            # hijau
                              },
-                             title="Ringkasan Total TSI, dan PML per Underwriting Year")
+                             title="Ringkasan Sum TSI, dan PML per Underwriting Year")
 
                 fig.update_layout(
                     xaxis_title="Underwriting Year (UY)",
