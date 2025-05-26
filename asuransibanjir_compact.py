@@ -35,9 +35,15 @@ st.write("##### Untuk memahami Dashboard secara keseluruhan dapat mengakses link
 st.write("##### Data dapat diakses melalui link https://bit.ly/FileUploadDashboardAsuransiBanjir")
 
 # Step 1: Upload CSV
-@st.cache_data
 st.subheader("⬆️ Upload Data yang Diperlukan")
-csv_file = st.file_uploader("📄 Upload CSV", type=["csv"])
+@st.cache_data
+def load_csv(file):
+    df = pd.read_csv(file)
+    df.columns = df.columns.str.strip()
+    return df
+
+if csv_file:
+    df = load_csv(csv_file)
 
 if csv_file:
     # Membaca file CSV
