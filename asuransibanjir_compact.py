@@ -46,46 +46,67 @@ if csv_file:
     # Display "as of" date based on the last day of the month of the latest INCEPTION DATE
     if 'INCEPTION DATE' in df.columns:
         if not pd.api.types.is_datetime64_any_dtype(df['INCEPTION DATE']):
-            df['INCEPTION DATE'] = pd.to_datetime(df['INCEPTION DATE'], format='%d/%m/%Y', errors='coerce')
+            df['INCEPTION DATE'] = pd.to_datetime(df['INCEPTION DATE'], format='mixed', dayfirst=True, errors='coerce')
         # Get the latest date from INCEPTION DATE
         latest_date = df['INCEPTION DATE'].max()
         if pd.notna(latest_date):
             last_day_of_month = (latest_date + MonthEnd(0)).date()
-            as_of_date = last_day_of_month.strftime('%d %B %Y')  # Format as "Tanggal Bulan Tahun"
+            as_of_date = last_day_of_month.strftime('%d %B %Y')
             st.info(f"ℹ️ Data yang diupload adalah data as of **{as_of_date}**")
         else:
             st.info("ℹ️ Data yang diupload tidak memiliki tanggal valid pada kolom `INCEPTION DATE`")
     else:
         st.info("ℹ️ Kolom `INCEPTION DATE` tidak ditemukan, tidak bisa menampilkan data as of")
 
-    # Step 2: Pilih Full Data atau Inforce Only
+    # Step 2: Proses EXPIRY DATE tanpa menghapus baris
     if 'EXPIRY DATE' in df.columns:
-        # Periksa apakah kolom sudah bertipe datetime
-        if not pd.api.types.is_datetime64_any_dtype(df['EXPIRY DATE']):
-            df['EXPIRY DATE'] = pd.to_datetime(df['EXPIRY DATE'], format='%d/%m/%Y', errors='coerce')
+        # Fungsi untuk mencoba beberapa format tanggal
+        def parse_dates(date_str):
+            if pd.isna(date_str):
+                return date_str  # Biarkan NaN tetap
+            try:
+                # Coba format DD/MM/YYYY
+                return pd.to_datetime(date_str, format='%d/%m/%Y', errors='raise')
+            except ValueError:
+                try:
+                    # Coba format MM/DD/YYYY
+                    return pd.to_datetime(date_str, format='%m/%d/%Y', errors='raise')
+                except ValueError:
+                    # Jika gagal, kembalikan string asli dan tandai untuk peringatan
+                    return date_str
+
+        # Terapkan parsing tanggal
+        df['EXPIRY DATE'] = df['EXPIRY DATE'].apply(parse_dates)
+
+        # Identifikasi baris dengan tanggal yang tidak valid (masih berupa string)
+        invalid_dates = df[df['EXPIRY DATE'].apply(lambda x: isinstance(x, str) and not pd.isna(x))]
+        if not invalid_dates.empty:
+            st.warning(f"⚠️ Terdapat {len(invalid_dates)} baris dengan EXPIRY DATE tidak valid: {invalid_dates['EXPIRY DATE'].unique().tolist()[:5]}")
+            # Opsional: Simpan baris bermasalah untuk analisis
+            invalid_dates.to_csv('invalid_expiry_dates.csv', index=False)
         
-        # Konversi ke date dan hapus NaT
-        df['EXPIRY DATE'] = df['EXPIRY DATE'].dt.date
-        df = df[df['EXPIRY DATE'].notna()]  # Hapus baris dengan NaT
+        # Konversi ke date hanya untuk yang sudah datetime
+        df['EXPIRY DATE'] = df['EXPIRY DATE'].apply(lambda x: x.date() if isinstance(x, pd.Timestamp) else x)
         
+        # Pilih Full Data atau Inforce Only
         st.markdown("### 🔍 Pilih Tipe Data yang Ingin Dipakai")
         data_option = st.radio("Ingin menggunakan data yang mana?", ["Full Data", "Filter by Expiry Date"])
 
         if data_option == "Filter by Expiry Date":
             # Let user select a date
             selected_date = st.date_input("Pilih tanggal untuk filter EXPIRY DATE >", value=pd.to_datetime("2024-12-31").date())
-            # Filter dataframe based on selected date
-            filtered_df = df[df['EXPIRY DATE'] > selected_date]
+            # Filter hanya untuk baris dengan EXPIRY DATE yang valid (datetime)
+            filtered_df = df[df['EXPIRY DATE'].apply(lambda x: isinstance(x, pd.Timestamp) or isinstance(x, datetime.date))]
+            filtered_df = filtered_df[filtered_df['EXPIRY DATE'] > selected_date]
             st.success(f"✅ Menggunakan **data inforce** dengan **{len(filtered_df):,} baris** (EXPIRY DATE > {selected_date})")
             df = filtered_df  # Update df dengan hasil filter
         else:
             st.success(f"✅ Menggunakan **data full** dengan **{len(df):,} baris**")
     else:
         st.warning("⚠️ Kolom `EXPIRY DATE` tidak ditemukan, tidak bisa filter data inforce.")
-    
-    # Tampilkan dataframe setelah filter
-    st.dataframe(df, use_container_width=True, hide_index=True)
 
+    # Tampilkan dataframe setelah proses
+    st.dataframe(df, use_container_width=True, hide_index=True)
     # Step 3: Upload shapefiles
     st.subheader("🗂 Upload Shapefile")
     shp_zips = st.file_uploader(
