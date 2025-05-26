@@ -17,13 +17,22 @@ import streamlit.components.v1 as components
 import pydeck as pdk
 import plotly.express as px
 import leafmap.foliumap as leafmap
+from pandas.tseries.offsets import MonthEnd
+import locale
+
+# Set locale to Indonesian for month names
+try:
+    locale.setlocale(locale.LC_TIME, 'id_ID')
+except locale.Error:
+    locale.setlocale(locale.LC_TIME, '')  # Fallback to default locale if id_ID is unavailable
 
 # Konfigurasi halaman Streamlit
-st.set_page_config(page_title="Asuransi Banjir Askrindo", page_icon="🏞️", layout="wide")
+st.set_page_config(page_title="Asuransi Banjir Askrindo", page_icon="assets/Logo Askrindo (Kotak).jpeg", layout="wide")
+st.logo("assets/Logo Askrindo BUMN.png", icon_image="assets/Logo Askrindo BUMN.png")
 st.title("🌊 Web Application Flood Insurance Askrindo")
 
-st.write("### Untuk memahami Dashboard secara keseluruhan dapat mengakses link https://drive.google.com/file/d/15ehrqGegyiQHTNk_TV6bZ45BkPusBhOA/view?usp=sharing")
-st.write("### Data dapat diakses melalui link https://bit.ly/FileUploadDashboardAsuransiBanjir")
+st.write("##### Untuk memahami Dashboard secara keseluruhan dapat mengakses link https://drive.google.com/file/d/15ehrqGegyiQHTNk_TV6bZ45BkPusBhOA/view?usp=sharing")
+st.write("##### Data dapat diakses melalui link https://bit.ly/FileUploadDashboardAsuransiBanjir")
 
 # Step 1: Upload CSV
 st.subheader("⬆️ Upload Data yang Diperlukan")
@@ -34,23 +43,45 @@ if csv_file:
     df = pd.read_csv(csv_file)
     df.columns = df.columns.str.strip()  # Bersihkan spasi pada nama kolom
 
+    # Display "as of" date based on the last day of the month of the latest INCEPTION DATE
+    if 'INCEPTION DATE' in df.columns:
+        if not pd.api.types.is_datetime64_any_dtype(df['INCEPTION DATE']):
+            df['INCEPTION DATE'] = pd.to_datetime(df['INCEPTION DATE'], format='%d/%m/%Y', errors='coerce')
+        # Get the latest date from INCEPTION DATE
+        latest_date = df['INCEPTION DATE'].max()
+        if pd.notna(latest_date):
+            last_day_of_month = (latest_date + MonthEnd(0)).date()
+            as_of_date = last_day_of_month.strftime('%d %B %Y')  # Format as "Tanggal Bulan Tahun"
+            st.info(f"ℹ️ Data yang diupload adalah data as of **{as_of_date}**")
+        else:
+            st.info("ℹ️ Data yang diupload tidak memiliki tanggal valid pada kolom `INCEPTION DATE`")
+    else:
+        st.info("ℹ️ Kolom `INCEPTION DATE` tidak ditemukan, tidak bisa menampilkan data as of")
+
     # Step 2: Pilih Full Data atau Inforce Only
     if 'EXPIRY DATE' in df.columns:
+        # Periksa apakah kolom sudah bertipe datetime
         if not pd.api.types.is_datetime64_any_dtype(df['EXPIRY DATE']):
             df['EXPIRY DATE'] = pd.to_datetime(df['EXPIRY DATE'], format='%d/%m/%Y', errors='coerce')
+        
+        # Konversi ke date dan hapus NaT
         df['EXPIRY DATE'] = df['EXPIRY DATE'].dt.date
-
+        df = df[df['EXPIRY DATE'].notna()]  # Hapus baris dengan NaT
+        
         st.markdown("### 🔍 Pilih Tipe Data yang Ingin Dipakai")
-        data_option = st.radio("Ingin menggunakan data yang mana?", ["Full Data", "Inforce Only (EXPIRY DATE > 31 Des 2024)"])
+        data_option = st.radio("Ingin menggunakan data yang mana?", ["Full Data", "Filter by Expiry Date"])
 
-        if data_option == "Inforce Only (EXPIRY DATE > 31 Des 2024)":
-            df = df[df['EXPIRY DATE'] > pd.to_datetime("2024-12-31").date()]
-            st.success(f"✅ Menggunakan **data inforce** dengan **{len(df):,} baris** (EXPIRY DATE > 31 Des 2024)")
+        if data_option == "Filter by Expiry Date":
+            # Let user select a date
+            selected_date = st.date_input("Pilih tanggal untuk filter EXPIRY DATE >", value=pd.to_datetime("2024-12-31").date())
+            # Filter dataframe based on selected date
+            filtered_df = df[df['EXPIRY DATE'] > selected_date]
+            st.success(f"✅ Menggunakan **data inforce** dengan **{len(filtered_df):,} baris** (EXPIRY DATE > {selected_date})")
+            df = filtered_df  # Update df dengan hasil filter
         else:
             st.success(f"✅ Menggunakan **data full** dengan **{len(df):,} baris**")
     else:
-        st.warning("⚠️ Kolom `EXPIRY DATE` tidak ditemukan, tidak bisa filter data inforce.")
-
+        st.warning("⚠️ Kolom `EXPIRY DATE` tidak ditemukan, tidak bisa filter data inforce.")    
     # Tampilkan dataframe setelah filter
     st.dataframe(df, use_container_width=True, hide_index=True)
 
@@ -218,10 +249,10 @@ if csv_file:
                     except:
                         return None
 
-                final['Rate'] = final.apply(lookup_rate, axis=1)
+                final['Scaling'] = final.apply(lookup_rate, axis=1)
 
             # Step 7: Hitung Probable Maximum Losses (PML)
-            selected_rate = "Rate"
+            selected_rate = "Scaling"
             selected_tsi = "TSI IDR"
 
             if selected_rate not in final.columns or selected_tsi not in final.columns:
@@ -236,6 +267,19 @@ if csv_file:
 
             final[selected_tsi] = clean_tsi_column(final[selected_tsi])
             final['PML'] = final[selected_tsi] * final[selected_rate]
+
+            final["Kode Okupasi (2 digit awal)"] = final["Kode Okupasi_mod"].str[:2]
+            final['Kode Okupasi (2 digit awal)'] = final['Kode Okupasi (2 digit awal)'].replace({
+                '#V': '00',
+                '#VALUE!': '00',
+                'na': '00',
+                'NaN': '00',
+                '4,': '41',
+                '4.': '41'
+            })
+            kolom_baru = final.pop("Kode Okupasi (2 digit awal)")
+            pos = final.columns.get_loc("Kode Okupasi_mod") + 1
+            final.insert(pos, "Kode Okupasi (2 digit awal)", kolom_baru)
 
             st.subheader("📈 Hasil Akhir")
             st.dataframe(final, use_container_width=True, hide_index=True)
@@ -255,11 +299,53 @@ if csv_file:
 
             # Tombol unduh
             st.download_button(
-                "⬇️ Unduh Data dengan PML",
+                "⬇️ Unduh Hasil Akhir (.csv)",
                 data=output_premi.getvalue(),
                 file_name=output_filename,
                 mime="text/csv"
             )
+
+            uploaded_filename = csv_file.name.lower()
+            if "jakarta" in uploaded_filename:
+                output_fileexcel = "Data Banjir Jakarta - After Computation.xlsx"
+            elif "all porto" in uploaded_filename:
+                output_fileexcel = "Data Banjir All Porto - After Computation.xlsx"
+            else:
+                output_fileexcel = "Data Banjir - After Computation.xlsx"
+
+            output_excel = io.BytesIO()
+            with pd.ExcelWriter(output_excel, engine='xlsxwriter') as writer:
+                df.to_excel(writer, index=False, sheet_name='Data')
+
+            # Kembalikan posisi ke awal agar bisa dibaca
+            output_excel.seek(0)
+
+            # Tombol untuk mengunduh
+            st.download_button(
+                label="⬇️ Unduh Hasil Akhir (.xlsx)",
+                data=output_excel,
+                file_name=output_fileexcel,
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+
+            st.write("###### Untuk analisis lebih lanjut, maka dapat memanfaatkan Google Earth Pro. Untuk langkah-langkahnya dapat dilakukan sebagai berikut.")
+            st.markdown("""
+                1. Silakan unduh hasil komputasi dalam format **.csv** di atas.  
+                2. Install **Google Earth Pro** pada device masing-masing.  
+                3. Siapkan file **.kml** atau **.kmz** untuk risiko yang diinginkan. Jika ingin menggunakan layer banjir, Anda dapat mengakses melalui tautan berikut:
+                
+                👉 [Layer Banjir](https://bit.ly/LayerBanjir)
+                
+                Jika ingin semua layer, maka dapat mengakses tautan berikut:
+                
+                👉 [All Layer inaRISK](https://gis.bnpb.go.id/server/rest/services/inarisk)
+                
+                4. Buka file **.kml** atau **.kmz** secara langsung di Google Earth Pro, maka layer akan otomatis muncul di peta.  
+                5. Buka file **.csv** hasil dari komputasi, lalu pilih delimiter yang sesuai (jika CSV biasa, pilih **comma** atau **koma (,)**).  
+                6. Masukkan kolom **Longitude** dan **Latitude** sesuai dengan nama kolom pada data masing-masing.  
+                7. Spesifikasikan tipe data pada setiap kolomnya. Biasanya Google akan otomatis mendeteksi, namun Anda tetap dapat mengeditnya jika ada kesalahan.
+                8. Layer dan titik data sudah dapat diakses di Google Earth Pro.
+            """)
 
             # Step 8: Peta Interaktif dengan Pydeck
             if lon_col and lat_col and not final.empty:
@@ -291,7 +377,7 @@ if csv_file:
                     final["color"] = [[0, 0, 0, 180]] * len(final)
 
                 # Buat popup info
-                excluded_cols = ['SISTEM', 'NAMA FILE', 'Unique', 'TOC', 'Jumlah Lantai_Rev1', 'Jumlah Lantai_Rev2', 'gridcode', 'weight', 'color', 'Jumlah Lantai_Rev', 'Jumlah_Lantai_Fix']
+                excluded_cols = ['SISTEM', 'NAMA FILE', 'Unique', 'TOC', 'gridcode', 'weight', 'color', 'Jumlah Lantai_Rev', 'Jumlah_Lantai_Fix']
                 final["popup"] = final.apply(
                     lambda row: "<br>".join(
                         [
@@ -355,16 +441,6 @@ if csv_file:
                 # Tampilkan map
                 st.pydeck_chart(deck, use_container_width=True, height=750, width=1000)
 
-            st.write("###### Untuk analisis geospasial secara langsung namun manual, maka dapat memanfaatkan Google Earth Pro, Untuk langkah-langkahnya dapat dilakukan sebagai berikut.")
-            st.markdown("""
-                1. Install Google Earth Pro pada device masing-masing
-                2. Siapkan file .kml atau .kmz untuk risiko yang diinginkan, jika banjir dapat diakses melalui tautan [Layer Banjir](bit.ly/LayerBanjir)
-                3. Buka file .kml atau .kmz secara langsung di Google Earth Pro, layer akan otomatis ditampilkan dalam peta
-                4. Open file .csv lalu pilih delimiter yang sesuai, jika csv maka pilih comma (,)
-                4. Lalu, masukkan kolom Longitude dan Latitude sesuai nama kolom di data masing-masing
-                5. Spesifikasikan tipe data pada setiap kolomnya, biasanya Google akan bisa langsung membaca tapi silakan untuk diedit jika ada yang tidak benar)
-            """)
-
             # Step 9: Ringkasan Hasil
             st.markdown("## 📊 Ringkasan Hasil")
             st.write(f"**Jumlah Data:** {len(final):,}")
@@ -389,15 +465,16 @@ if csv_file:
                     'TotalPML': 'Total PML'
                 })
 
-                st.dataframe(
-                    summary_uy.style.format({
-                        'Total TSI': '{:2e}',
-                        'Total PML': '{:2e}',
-                    }),
-                    use_container_width=True,
-                    hide_index=True
-                )
+                # Create a copy for display with formatted strings
+                display_uy = summary_uy.copy()
+                display_uy["Jumlah Polis"] = display_uy["Jumlah Polis"].apply(lambda x: f"{x:,.0f}".replace(",", "."))
+                display_uy["Total TSI"] = display_uy["Total TSI"].apply(lambda x: f"{x:,.0f}".replace(",", "."))
+                display_uy["Total PML"] = display_uy["Total PML"].apply(lambda x: f"{x:,.0f}".replace(",", "."))
 
+                # Display the formatted dataframe
+                st.dataframe(display_uy, use_container_width=True, hide_index=True)
+
+                # Melt the original numerical dataframe for the chart
                 summary_melted = summary_uy.melt(
                     id_vars='UY',
                     value_vars=['Total TSI', 'Total PML'],
@@ -406,8 +483,8 @@ if csv_file:
                 )
 
                 chart = alt.Chart(summary_melted).mark_line(point=True).encode(
-                    x='UY:O',
-                    y=alt.Y('Nilai:Q', title='Nilai (Rp)', axis=alt.Axis(format='e')),
+                    x=alt.X('UY:O', title='Underwriting Year', axis=alt.Axis(labelAngle=0)),
+                    y=alt.Y('Nilai:Q', title='Nilai (Rp)', axis=alt.Axis(format='.1e')),
                     color=alt.Color(
                         'Tipe:N',
                         title='Jenis Nilai',
@@ -416,7 +493,7 @@ if csv_file:
                     tooltip=[
                         'UY',
                         'Tipe',
-                        alt.Tooltip('Nilai:Q', title='Nilai (Rp)', format='e')
+                        alt.Tooltip('Nilai:Q', title='Nilai (Rp)', format='.1e')
                     ]
                 ).properties(
                     title='📈 Tren Total TSI dan PML per UY',
@@ -438,11 +515,15 @@ if csv_file:
                     'total_pml': 'Total PML'
                 })
 
-                summary_okupasi['Total TSI'] = summary_okupasi['Total TSI'].apply(lambda x: f"{x:.2e}")
-                summary_okupasi['Total PML'] = summary_okupasi['Total PML'].apply(lambda x: f"{x:.2e}")
+                # Create a copy for display with formatted strings
+                display_okupasi = summary_okupasi.copy()
+                display_okupasi['Jumlah Polis'] = display_okupasi['Jumlah Polis'].apply(lambda x: f"{x:,.0f}".replace(",", "."))
+                display_okupasi['Total TSI'] = display_okupasi['Total TSI'].apply(lambda x: f"{x:,.0f}".replace(",", "."))
+                display_okupasi['Total PML'] = display_okupasi['Total PML'].apply(lambda x: f"{x:,.0f}".replace(",", "."))
 
-                st.dataframe(summary_okupasi, use_container_width=True, hide_index=True)
+                st.dataframe(display_okupasi, use_container_width=True, hide_index=True)
 
+                # Melt the original numerical dataframe for the chart
                 summary_melted = summary_okupasi.melt(
                     id_vars='Kategori Okupasi',
                     value_vars=['Total TSI', 'Total PML'],
@@ -451,12 +532,12 @@ if csv_file:
                 )
 
                 chart = alt.Chart(summary_melted).mark_bar().encode(
-                    x=alt.X('Kategori Okupasi:N', title='Kategori Okupasi'),
+                    x=alt.X('Kategori Okupasi:N', title='Kategori Okupasi', axis=alt.Axis(labelAngle=0)),
                     y=alt.Y(
                         'Nilai:Q',
                         title='Nilai (Rp)',
                         stack='zero',
-                        axis=alt.Axis(format='e')
+                        axis=alt.Axis(format='.1e')
                     ),
                     color=alt.Color(
                         'Tipe:N',
@@ -466,7 +547,7 @@ if csv_file:
                     tooltip=[
                         'Kategori Okupasi',
                         'Tipe',
-                        alt.Tooltip('Nilai:Q', format=',')
+                        alt.Tooltip('Nilai:Q', title='Nilai (Rp)', format='.1e')
                     ]
                 ).properties(
                     title='📊 Distribusi Total TSI dan PML per Kategori Okupasi',
@@ -488,28 +569,47 @@ if csv_file:
                     'TotalPML': 'Total PML'
                 })
 
-                summary_riskclass['Total TSI'] = summary_riskclass['Total TSI'].apply(lambda x: f"{x:.2e}")
-                summary_riskclass['Total PML'] = summary_riskclass['Total PML'].apply(lambda x: f"{x:.2e}")
+                # Create a copy for display with formatted strings
+                display_riskclass = summary_riskclass.copy()
+                display_riskclass['Jumlah Polis'] = display_riskclass['Jumlah Polis'].apply(lambda x: f"{x:,.0f}".replace(",", "."))
+                display_riskclass['Total TSI'] = display_riskclass['Total TSI'].apply(lambda x: f"{x:,.0f}".replace(",", "."))
+                display_riskclass['Total PML'] = display_riskclass['Total PML'].apply(lambda x: f"{x:,.0f}".replace(",", "."))
 
-                st.dataframe(summary_riskclass, use_container_width=True, hide_index=True)
+                st.dataframe(display_riskclass, use_container_width=True, hide_index=True)
 
             if 'UY' in final.columns and 'Kategori Risiko' in final.columns:
                 st.markdown("### 📋 Ringkasan Berdasarkan UY dan Kategori Risiko")
-                summary = final.groupby(['UY', 'Kategori Risiko']).agg(
-                    Count_Polis=('Kategori Risiko', 'count'),
-                    Sum_TSI=(selected_tsi, 'sum'),
-                    Estimated_Claim=('PML', 'sum')
-                ).reset_index().rename(columns={
-                    'Count_Polis': 'Jumlah Polis',
-                    'Sum_TSI': 'Total TSI',
-                    'Estimated_Claim': 'PML'
-                })
+                count_polis = final.pivot_table(
+                    index='UY',
+                    columns=['Kategori Risiko'],
+                    aggfunc='size'
+                ).fillna(0).astype(int)
 
-                pivoted = summary.pivot(index='UY', columns='Kategori Risiko')
-                pivoted = pivoted.fillna(0)
-                pivoted.columns = [' '.join(col).strip() for col in pivoted.columns.values]
-                styled_df = pivoted.applymap(lambda x: f"{int(x):,}".replace(",", "."))
-                st.dataframe(styled_df, use_container_width=True, hide_index=True)
+                sum_tsi = final.pivot_table(
+                    index='UY',
+                    columns=['Kategori Risiko'],
+                    values=selected_tsi,
+                    aggfunc='sum'
+                ).fillna(0).astype(int)
+                
+                est_claim = final.pivot_table(
+                    index='UY',
+                    columns=['Kategori Risiko'],
+                    values='PML',
+                    aggfunc='sum'
+                ).fillna(0).astype(int)
+
+                def format_ribuan(df):
+                    return df.apply(lambda x: x.map(lambda y: f"{int(y):,}".replace(",", ".") if pd.notnull(y) else y))
+
+                st.markdown("##### Jumlah Polis")
+                st.dataframe(format_ribuan(count_polis), use_container_width=True)
+
+                st.markdown("##### Total TSI")
+                st.dataframe(format_ribuan(sum_tsi), use_container_width=True)
+                
+                st.markdown("##### Probable Maximum Loss")
+                st.dataframe(format_ribuan(est_claim), use_container_width=True)
 
                 st.markdown("### 📋 Ringkasan Berdasarkan UY, Kategori Risiko dan Okupasi")
                 count_polis = final.pivot_table(
@@ -533,17 +633,88 @@ if csv_file:
                 ).fillna(0).astype(int)
 
                 def format_ribuan(df):
-                    return df.applymap(lambda x: f"{x:,}".replace(",", "."))
+                    return df.apply(lambda x: x.map(lambda y: f"{int(y):,}".replace(",", ".") if pd.notnull(y) else y))
 
-                st.markdown("#### Count Polis")
-                st.dataframe(count_polis)
+                st.markdown("##### Jumlah Polis")
+                st.dataframe(format_ribuan(count_polis), use_container_width=True)
 
-                st.markdown("#### Sum TSI")
-                st.dataframe(format_ribuan(sum_tsi))
+                st.markdown("##### Total TSI")
+                st.dataframe(format_ribuan(sum_tsi), use_container_width=True)
 
-                st.markdown("#### Probable Maximum Loss")
-                st.dataframe(format_ribuan(est_claim))
+                st.markdown("##### Probable Maximum Loss")
+                st.dataframe(format_ribuan(est_claim), use_container_width=True)
 
+                st.markdown("### 📋 Ringkasan Gabungan Berdasarkan UY dan Kode Okupasi")
+
+                # Fungsi pivot formatter
+                def get_pivot(df, value=None, label=''):
+                    if value is None:
+                        pivot = df.pivot_table(index='Kode Okupasi (2 digit awal)', columns='UY', aggfunc='size')
+                    else:
+                        pivot = df.pivot_table(index='Kode Okupasi (2 digit awal)', columns='UY', values=value, aggfunc='sum')
+                    pivot = pivot.fillna(0).astype(int)
+                    pivot['Jenis'] = label
+                    return pivot.reset_index()
+
+                # Buat masing-masing pivot
+                count_df = get_pivot(final, None, 'Jumlah Polis')
+                tsi_df = get_pivot(final, selected_tsi, 'Total TSI')
+                pml_df = get_pivot(final, 'PML', 'PML')
+
+                # Gabungkan semua pivot
+                combined = pd.concat([count_df, tsi_df, pml_df], ignore_index=True)
+
+                # Jadikan 'Jenis' bertipe kategorikal dengan urutan yang diinginkan
+                urutan_jenis = ['Jumlah Polis', 'Total TSI', 'PML']
+                combined['Jenis'] = pd.Categorical(combined['Jenis'], categories=urutan_jenis, ordered=True)
+
+                # Urutkan berdasarkan Jenis lalu Kode Okupasi
+                combined = combined.sort_values(by=['Jenis', 'Kode Okupasi (2 digit awal)'])
+
+                # Pindahkan kolom 'Jenis' ke paling kiri
+                cols = ['Jenis'] + [col for col in combined.columns if col != 'Jenis']
+                combined = combined[cols]
+                
+
+                # Format angka dengan titik sebagai pemisah ribuan (Indonesia-style)
+                uy_cols = combined.columns.difference(['Jenis', 'Kode Okupasi (2 digit awal)'])
+                combined['Total'] = combined[uy_cols].apply(pd.to_numeric, errors='coerce').sum(axis=1)
+                combined[uy_cols.tolist() + ['Total']] = combined[uy_cols.tolist() + ['Total']].applymap(
+                    lambda x: f"{int(x):,}".replace(",", ".") if pd.notna(x) else x
+                )
+
+                # Tampilkan hasil di Streamlit
+                st.dataframe(combined, use_container_width=True, hide_index=True)
+                
+                uy_cols = [col for col in combined.columns if col not in ['Jenis', 'Kode Okupasi (2 digit awal)', 'Jumlah Polis', 'Total']]
+                long_df = combined.melt(id_vars='Jenis', value_vars=uy_cols,
+                        var_name='Underwriting Year', value_name='Value')
+
+                # Ubah string format ribuan menjadi float untuk grafik
+                long_df['Value'] = long_df['Value'].str.replace(".", "", regex=False).astype(float)
+
+                # Plot menggunakan Plotly
+                fig = px.bar(long_df, 
+                x='Underwriting Year', 
+                y='Value', 
+                color='Jenis',
+                barmode='group',
+                text=None,
+                color_discrete_map={
+                 'Total TSI': '#EF553B',     # merah
+                 'PML': '#00CC96'            # hijau
+                },
+                title="Ringkasan Total TSI, dan PML per Underwriting Year")
+
+                fig.update_layout(
+                xaxis_title="Underwriting Year (UY)",
+                yaxis_title="Nilai",
+                legend_title="Metric",
+                yaxis_tickformat=",",
+                bargap=0.05
+                )
+
+                st.plotly_chart(fig, use_container_width=True)
         else:
             st.warning("⚠️ Tidak ada shapefile yang berhasil diproses.")
 else:
